@@ -3,14 +3,20 @@ from p2p_chat.keyboard import KeyboardThread
 import socket
 import threading
 
+# TODO
+# host -> addr
+
 class Peer:
     def __init__(self, host='127.0.0.1', port=8080, name='user'):
         self.alive = True
-        self.name = name
+        self.id = f'{host}:{port}:{name}'
         self.contacts = []
 
         self.commands = {
             'READ': self.read,
+            'MEET': self.meet,
+            'WELC': self.handle_welcome,
+            'INTR': self.handle_introduction
         }
 
         self.listen_sock = self.create_socket(host, port)
@@ -109,4 +115,101 @@ class Peer:
         return
 
     def read(self, data):
+        """Prints received data to the console.
+
+        Args:
+            data (str): received data.
+        """
         print(data)
+    
+    def create_contact(self, contact_str):
+        """Creates and returns a dictionary objet based off of a contact id.
+
+        Args:
+            contact_str (str): the id of the contact, formatted as 
+                'addr:port:name'
+
+        Returns:
+            dict: dictionary objet for the contact
+        """
+        addr, port, name = contact_str.split(':')
+        contact = {
+            'id': f'{addr}:{port}:{name}', # same as contact_str
+            'addr': addr,
+            'port': int(port),
+            'name': name
+        }
+
+        return contact
+
+    # def add_contact(self, contact): TODO ?
+    #     self.contacts.append(contact)
+
+    def meet(self, contact_str):
+        """Handles a peer introducing itself to the network.
+
+        The first contact from a peer to the peer network will be through this command.
+        - introduces all other known contacts on the peer network
+        - welcomes the new peer to the network
+        - adds the contact information to the contacts
+
+        Args:
+            contact_str (str): formatted contact id of new peer.
+        """
+        contact = self.create_contact(contact_str)
+
+        if contact in self.contacts:
+            print("Contact already exists")
+            return
+        
+        self.introduce(contact)
+        self.welcome(contact)
+        self.contacts.append(contact)
+    
+    def introduce(self, new_contact):
+        """Introduces all existing peers in a network to a peer joining the network.
+
+        Args:
+            new_contact (str): the formatted contact id of the new peer to
+                be introduced.
+        """
+        for contact in self.contacts:
+            peer = Connection(contact['addr'], contact['port'])
+            peer.senddata('intr' + new_contact['id'])
+    
+    def handle_introduction(self, contact_str):
+        """Adds any introduced users to the contact list.
+
+        Args:
+            contact_str (str): formatted id of introduced contact.
+        """
+        contact = self.format_contact(contact_str)
+        self.contacts.append(contact)
+    
+    def welcome(self, contact):
+        """Introduces a peer joining a network to all known peers.
+        
+        Args:
+            contact (dict): contact dict objet of new peer
+        """
+        host, port = contact['addr'], int(contact['port'])
+        peer = Connection(host, port)
+
+        known_peers = [self.id]
+        for contact in self.contacts:
+            known_peers.append(contact['id'])
+        
+        data = 'welc' + ','.join(known_peers)
+        peer.senddata(data)
+    
+    def handle_welcome(self, network_contacts):
+        """Stores all known peers of a network upon joining.
+        
+        Args:
+            network_contacts (list): list of all the ids
+                of contacts in the network
+        """
+        new_contacts = network_contacts.split(',')
+        for contact_str in new_contacts:
+            contact = self.format_contact(contact_str)
+            self.contacts.append(contact)        
