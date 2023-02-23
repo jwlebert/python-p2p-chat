@@ -1,5 +1,4 @@
 from p2p_chat.connection import Connection
-import sys, os, traceback
 import socket
 import threading
 
@@ -9,10 +8,10 @@ class Peer:
         self.peers = []
 
         self.listen_sock = self.create_socket(host, port)
-        self.listen_sock.settimeout(2)
+        self.listen_sock.settimeout(1)
         # .accept() is blocking. the timeout ensures that other operations,
         # such as interrupts, can occur even if no connection is established
-
+        
         while self.alive:
             self.await_peers()
         
@@ -36,7 +35,6 @@ class Peer:
 
             sock, addr = self.listen_sock.accept()
             # listen for connections from peers
-            print(sock)
             sock.settimeout(None)
 
             t = threading.Thread(target = self.handle_peer, args = [sock])
@@ -53,11 +51,9 @@ class Peer:
 
     def handle_peer(self, peer_sock):
         host, port = peer_sock.getpeername()
-        print(host, port)
         peer = Connection(self, host, port, peer_sock)
-        self.peers.append(peer)
 
-        peer.loop()
+        command, data = peer.recvdata()
+        print(command, data, sep="\n")
         
-        self.peers.remove(peer) # potential source of error
         peer.close()
