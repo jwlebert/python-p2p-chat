@@ -14,7 +14,7 @@ class Connection:
         # define the socket connection, either by the socket object passed
         # or by the hostname and port
 
-        print(self.sock)
+        # print(self.sock)
 
         self.sock_data = self.sock.makefile('rwb', 0)
         # create a file object with that data from the socket
@@ -45,8 +45,8 @@ class Connection:
         return (command, data)
     
     def senddata(self, data):
-        msg = data.encode('utf-8')
-        command = b"read"
+        command = data[:4].encode('utf-8')
+        msg = data[4:].encode('utf-8')
 
         data = struct.pack("!4sI%ds" % len(msg), command, len(msg), msg)
         # "!4sL%ds" is the format that we are packing to

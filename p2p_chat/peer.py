@@ -4,9 +4,14 @@ import socket
 import threading
 
 class Peer:
-    def __init__(self, host='127.0.0.1', port=8080):
+    def __init__(self, host='127.0.0.1', port=8080, name='user'):
         self.alive = True
-        self.peers = []
+        self.name = name
+        self.contacts = []
+
+        self.commands = {
+            'READ': self.read,
+        }
 
         self.listen_sock = self.create_socket(host, port)
         self.listen_sock.settimeout(1)
@@ -37,6 +42,7 @@ class Peer:
             # print("Listening for connections... ")
 
             sock, addr = self.listen_sock.accept()
+            print(addr)
             # listen for connections from peers
             sock.settimeout(None)
 
@@ -65,12 +71,13 @@ class Peer:
         peer = Connection(host, port, peer_sock)
 
         command, data = peer.recvdata()
-        print(command, data, sep="\n")
+        print(command, data)
+        print(self.handle_command(command.upper(), data))
         
         peer.close()
 
     def handle_keyboard_input(self, input_str):
-        a = input_str.split(':')
+        a = input_str.split(';')
         host = a[0]
         port = int(a[1])
         msg = a[2]
@@ -83,3 +90,23 @@ class Peer:
 
         # peer.senddata(input_str[1:])
         peer.senddata(msg)
+    
+    def handle_command(self, command, arg):
+        func = self.commands.get(command, None)
+        if func is None:
+            print("Command doesn't exist.")
+            return
+
+        try:
+            if arg:
+                func(arg)
+            else:
+                func()
+        except:
+            raise
+
+        print("Success")
+        return
+
+    def read(self, data):
+        print(data)
