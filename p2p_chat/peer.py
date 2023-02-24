@@ -183,7 +183,7 @@ class Peer:
         Args:
             contact_str (str): formatted id of introduced contact.
         """
-        contact = self.format_contact(contact_str)
+        contact = self.create_contact(contact_str)
         self.contacts.append(contact)
     
     def welcome(self, contact):
@@ -211,5 +211,5 @@ class Peer:
         """
         new_contacts = network_contacts.split(',')
         for contact_str in new_contacts:
-            contact = self.format_contact(contact_str)
+            contact = self.create_contact(contact_str)
             self.contacts.append(contact)        
