@@ -9,6 +9,7 @@ import threading
 class Peer:
 	def __init__(self, host='127.0.0.1', port=8080, name='user'):
 		self.alive = True
+		self.latest_request = None
 		self.id = f'{host}:{port}:{name}'
 		self.contacts = []
 
@@ -23,13 +24,13 @@ class Peer:
 		self.listen_sock.settimeout(1)
 		# .accept() is blocking. the timeout ensures that other operations,
 		# such as interrupts, can occur even if no connection is established
-		
-		self.key_thread = KeyboardThread(callback=self.handle_keyboard_input)
 
-		while self.alive:
-			self.await_peers()
+		# self.key_thread = KeyboardThread(callback=self.handle_keyboard_input)
+
+		# while self.alive:
+		# 	self.await_peers()
 		
-		self.listen_sock.close()
+		# self.listen_sock.close()
 
 
 	def create_socket(self, host, port, backlog=5):
@@ -57,7 +58,7 @@ class Peer:
 			# create and start a thread to read what the connect said
 		except KeyboardInterrupt:
 			print("Keyboard Interrupt")
-			self.alive = False
+			self.close()
 			# return
 		except TimeoutError:
 			pass
@@ -65,8 +66,8 @@ class Peer:
 		except:
 			print("error")
 
-	def handle_peer(self, peer_sock):
-		host, port = peer_sock.getpeername()
+	def handle_peer(self, conn_sock):
+		host, port = conn_sock.getpeername()
 		# peer_id = {
 		#     'host': host,
 		#     'port': port
@@ -74,13 +75,17 @@ class Peer:
 		# if peer_id not in self.peers: self.peers.append(peer_id)
 		# print(self.peers)
 
-		peer = Connection(host, port, peer_sock)
+		conn = Connection(host, port, conn_sock)
 
-		command, data = peer.recvdata()
+		command, data = conn.recvdata()
 		print(command, data)
 		self.handle_command(command.upper(), data)
 		
-		peer.close()
+		conn.close()
+
+	def start_keythread(self):
+		"""Starts a KeyThread which will listen for input in the terminal."""
+		self.key_thread = KeyboardThread(callback=self.handle_keyboard_input)
 
 	def handle_keyboard_input(self, input_str):
 		a = input_str.split(';')
@@ -107,6 +112,7 @@ class Peer:
 			arg (str): arguments, typically the rest of the data received
 				in a peer connection.
 		"""
+		command = command.upper()
 		func = self.commands.get(command, None)
 		if func is None:
 			raise Exception("Command doesn't exist.")
@@ -119,7 +125,7 @@ class Peer:
 		except:
 			raise
 
-		print("Success")
+		self.latest_request = (command, arg)
 	
 	def send_data(self, host: str, port: int, data: str) -> None:
 		"""Sends data to the specified address.
@@ -229,3 +235,12 @@ class Peer:
 		for contact_str in new_contacts:
 			contact = self.create_contact(contact_str)
 			self.contacts.append(contact)        
+	
+	def close(self) -> None:
+		"""Performs all required actions to properly close a peer."""
+		self.alive = False
+		try:
+			self.key_thread.alive = False
+		except AttributeError: # if there is no key thread running
+			pass
+		self.listen_sock.close()

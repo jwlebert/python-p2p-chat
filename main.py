@@ -5,3 +5,8 @@ port = int(input("port : "))
 
 
 peer = Peer(port=port)
+peer.start_keythread()
+while peer.alive:
+    peer.await_peers()
+    
+# TODO LISTEN THREAD
