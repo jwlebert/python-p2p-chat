@@ -29,7 +29,8 @@ class Connection:
 		"""Receives data sent from another peer.
 		
 		Returns:
-			tuple: a tuple of the command and data received.
+			tuple: a tuple of the command and data received. Returns a
+				tuple of (None, None) on error.
 		"""
 		try:
 			command = self.sock_data.read(4).decode("utf-8")
