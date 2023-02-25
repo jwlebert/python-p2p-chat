@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "python-p2p-chat"
+version = "0.1.0"
+description = "A simple peer to peer chat, written in python."
+authors = ["JWL <j.lebert4402@gmail.com>"]
+license = "CC0 1.0 Universal"
+readme = "README.md"
+packages = [{include = "python_p2p_chat"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
