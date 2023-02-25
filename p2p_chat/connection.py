@@ -7,7 +7,7 @@ class Connection:
 	Used to transfer and receive data to and from peers.
 	"""
 	def __init__(self, host: str, port: int, sock: (socket.socket | None) = None) -> None:
-		"""Initializes the socket connection.
+		"""Initializes a socket connection listening to the specified address.
 
 		Args:
 			host (str): an IPv4 address
