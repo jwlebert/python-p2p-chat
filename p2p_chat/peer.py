@@ -1,5 +1,5 @@
 from p2p_chat.connection import Connection
-from p2p_chat.keyboard import KeyboardThread
+from p2p_chat.threads import ListenThread, InputThread
 import socket
 import threading
 
@@ -7,9 +7,13 @@ import threading
 # host -> addr
 
 class Peer:
-	def __init__(self, host='127.0.0.1', port=8080, name='user'):
+	def __init__(self, host='127.0.0.1', port=8080, name='user', key_input: bool = True):
 		self.alive = True
 		self.latest_request = None
+
+		self.listen_thread = None # ? REQUIRED ???
+		self.key_thread = None
+
 		self.id = f'{host}:{port}:{name}'
 		self.contacts = []
 
@@ -21,17 +25,9 @@ class Peer:
 		}
 
 		self.listen_sock = self.create_socket(host, port)
-		self.listen_sock.settimeout(1)
-		# .accept() is blocking. the timeout ensures that other operations,
-		# such as interrupts, can occur even if no connection is established
+		self.start_listen_thread()
 
-		# self.key_thread = KeyboardThread(callback=self.handle_keyboard_input)
-
-		# while self.alive:
-		# 	self.await_peers()
-		
-		# self.listen_sock.close()
-
+		if key_input: self.start_key_thread()
 
 	def create_socket(self, host, port, backlog=5):
 		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -43,6 +39,9 @@ class Peer:
 		print("Socket created.")
 
 		return s
+	
+	def start_listen_thread(self):
+		self.listen_thread = ListenThread(func = self.await_peers)
 	
 	def await_peers(self):
 		try:
@@ -62,18 +61,20 @@ class Peer:
 			# return
 		except TimeoutError:
 			pass
-			# print("Timeout")
+		except OSError as e:
+			if (e.errno == 10038 and not self.listen_thread.alive):
+			# this error is raised when the peers close, because the listen_thread
+			# is still trying to accept a request, but the sockets closed, so they
+			# are no longer considered sockets. 
+				return
+			else: 
+				print(e)
+				raise
 		except:
-			print("error")
+			raise
 
 	def handle_peer(self, conn_sock):
 		host, port = conn_sock.getpeername()
-		# peer_id = {
-		#     'host': host,
-		#     'port': port
-		# }
-		# if peer_id not in self.peers: self.peers.append(peer_id)
-		# print(self.peers)
 
 		conn = Connection(host, port, conn_sock)
 
@@ -83,25 +84,22 @@ class Peer:
 		
 		conn.close()
 
-	def start_keythread(self):
+	def start_key_thread(self):
 		"""Starts a KeyThread which will listen for input in the terminal."""
-		self.key_thread = KeyboardThread(callback=self.handle_keyboard_input)
+		self.key_thread = InputThread(callback = self.handle_keyboard_input,
+				exit_func = self.close)
 
-	def handle_keyboard_input(self, input_str):
-		a = input_str.split(';')
-		host = a[0]
-		port = int(a[1])
-		msg = a[2]
+	def handle_keyboard_input(self, input_str): #TODO
+		if input_str == 'l': print(self.contacts)
+		try:
+			a = input_str.split(';')
+			host = a[0]
+			port = int(a[1])
+			msg = a[2]
 
-		self.send_data(host, port, msg)
-
-		# peer_id = self.peers[int(input_str[0])]
-		# print(peer_id)
-		# # peer = Connection(peer_id['host'], peer_id['port'])
-		# peer = Connection(host, port)
-
-		# # peer.senddata(input_str[1:])
-		# peer.senddata(msg)
+			self.send_data(host, port, msg)
+		except:
+			raise Exception("Invalid input.")
 	
 	def handle_command(self, command: str, arg: str) -> None:
 		"""Tries to execute a commands from other peers.
@@ -238,9 +236,6 @@ class Peer:
 	
 	def close(self) -> None:
 		"""Performs all required actions to properly close a peer."""
-		self.alive = False
-		try:
-			self.key_thread.alive = False
-		except AttributeError: # if there is no key thread running
-			pass
+		if self.key_thread is not None: self.key_thread.alive = False
+		if self.listen_thread is not None: self.listen_thread.alive = False
 		self.listen_sock.close()
