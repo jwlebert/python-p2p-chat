@@ -118,14 +118,19 @@ class Peer:
 		Args:
 			input_str (str): string of the input from the console
 		"""
-		if input_str == 'l': print(self.contacts)
+		if input_str == 'l': print(self.contacts) # DEBUG TODO
 		try:
-			a = input_str.split(';')
-			host = a[0]
-			port = int(a[1])
-			msg = a[2]
+			fields = input_str.split(';')
+			
+			host = fields[0]
+			port = int(fields[1])
+			addr = (host, port)
 
-			self.send_data(host, port, msg)
+			msg = fields[2]
+			command = msg[:4]
+			data = msg[4:]
+
+			self.send_data(addr, command, data)
 		except:
 			raise Exception("Invalid input.")
 	
