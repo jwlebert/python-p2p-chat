@@ -1,17 +1,17 @@
 import socket
 import struct
+from typing import Tuple
 
 class Connection:
 	"""A connection between two peers.
 
 	Used to transfer and receive data to and from peers.
 	"""
-	def __init__(self, host: str, port: int, sock: (socket.socket | None) = None) -> None:
+	def __init__(self, addr: Tuple[str, int], sock: (socket.socket | None) = None) -> None:
 		"""Initializes a socket connection listening to the specified address.
 
 		Args:
-			host (str): an IPv4 address
-			port (int): the target port
+			addr (str, int): a tuple of the target IPv4 address and port
 			socket (socket): a socket objet; if there is already a
 				socket for the connection, this will be used instead
 				of a new one
@@ -20,7 +20,7 @@ class Connection:
 			self.sock = sock
 		else:
 			self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-			self.sock.connect((host, int(port)))
+			self.sock.connect(addr)
 
 		self.sock_data = self.sock.makefile('rwb', 0)
 		# create a file object with that data from the socket
@@ -54,6 +54,8 @@ class Connection:
 		except:
 			return (None, None)
 		
+		self.close()
+
 		return (command, data)
 	
 	def senddata(self, data: str) -> None:
@@ -75,6 +77,8 @@ class Connection:
 		#           the '%' after the format (in this case, len(msg))
 		
 		self.sock_data.write(data)
+
+		self.close()
 
 	def close(self) -> None:
 		"""Closes the socket connection."""

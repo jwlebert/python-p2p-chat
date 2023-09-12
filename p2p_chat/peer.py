@@ -1,19 +1,27 @@
-from p2p_chat.connection import Connection
-from p2p_chat.threads import ListenThread, InputThread
 import socket
 import threading
+from typing import Tuple
 
-# TODO
-# host -> addr
+from p2p_chat.connection import Connection
+from p2p_chat.threads import ListenThread, InputThread
 
 class Peer:
-	def __init__(self, host='127.0.0.1', port=8080, name='user', key_input: bool = True):
+	def __init__(self, addr: Tuple[str, int] = ('127.0.0.1', 8080), name: str = 'user', key_input: bool = False) -> None:
+		"""Initializes a peer and listens for connections.
+
+		Args:
+			addr (str, int): the peer's address, comprised of it's IPv4 address
+				and port.
+			name (str): the peer's name.
+			key_input (bool): if the peer will listen for input on a thread.
+		"""
 		self.alive = True
 		self.latest_request = None
 
 		self.listen_thread = None # ? REQUIRED ???
 		self.key_thread = None
 
+		host, port = addr
 		self.id = f'{host}:{port}:{name}'
 		self.contacts = []
 
@@ -24,32 +32,41 @@ class Peer:
 			'INTR': self.handle_introduction
 		}
 
-		self.listen_sock = self.create_socket(host, port)
+		self.listen_sock = self.create_socket(addr)
 		self.start_listen_thread()
 
 		if key_input: self.start_key_thread()
 
-	def create_socket(self, host, port, backlog=5):
+	def create_socket(self, addr: Tuple[str, int], backlog: int = 5) -> socket.socket:
+		"""Creates a listening socket at the specified address.
+
+		Args:
+			addr (str, int): the address to listen to (IPv4, port)
+			backlog (int): how many requests can be queued before blocking
+				new requests
+
+		Returns:
+			socket: a socket created based off the parameters
+		"""
 		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-		s.bind((host, port))
+		s.bind(addr)
 		s.listen(backlog)
-		# creates a socket that will listen for connections from peers
 
 		print("Socket created.")
 
 		return s
 	
-	def start_listen_thread(self):
+	def start_listen_thread(self) -> None:
+		"""Start a thread to listen for connections from peers."""
 		self.listen_thread = ListenThread(func = self.await_peers)
 	
-	def await_peers(self):
+	def await_peers(self) -> None:
+		"""Listens for and handles requests from peers."""
 		try:
-			# print("Listening for connections... ")
+			print("Listening for connections... ")
 
 			sock, addr = self.listen_sock.accept()
-			print(addr)
-			# listen for connections from peers
 			sock.settimeout(None)
 
 			t = threading.Thread(target = self.handle_peer, args = [sock])
@@ -73,10 +90,16 @@ class Peer:
 		except:
 			raise
 
-	def handle_peer(self, conn_sock):
-		host, port = conn_sock.getpeername()
+	def handle_peer(self, conn_sock: socket.socket) -> None:
+		"""Handles a connection from a peer.
 
-		conn = Connection(host, port, conn_sock)
+		Args:
+			conn_sock (socket): the socket created from the peer's
+				connection
+		"""
+		addr = conn_sock.getpeername()
+
+		conn = Connection(addr, conn_sock)
 
 		command, data = conn.recvdata()
 		print(command, data)
@@ -84,20 +107,30 @@ class Peer:
 		
 		conn.close()
 
-	def start_key_thread(self):
+	def start_key_thread(self) -> None:
 		"""Starts a KeyThread which will listen for input in the terminal."""
 		self.key_thread = InputThread(callback = self.handle_keyboard_input,
 				exit_func = self.close)
 
-	def handle_keyboard_input(self, input_str): #TODO
-		if input_str == 'l': print(self.contacts)
-		try:
-			a = input_str.split(';')
-			host = a[0]
-			port = int(a[1])
-			msg = a[2]
+	def handle_keyboard_input(self, input_str: str) -> None:
+		"""Handles keyboard input from the peers InputThread.
 
-			self.send_data(host, port, msg)
+		Args:
+			input_str (str): string of the input from the console
+		"""
+		if input_str == 'l': print(self.contacts) # DEBUG TODO
+		try:
+			fields = input_str.split(';')
+			
+			host = fields[0]
+			port = int(fields[1])
+			addr = (host, port)
+
+			msg = fields[2]
+			command = msg[:4]
+			data = msg[4:]
+
+			self.send_data(addr, command, data)
 		except:
 			raise Exception("Invalid input.")
 	
@@ -125,16 +158,19 @@ class Peer:
 
 		self.latest_request = (command, arg)
 	
-	def send_data(self, host: str, port: int, data: str) -> None:
+	def send_data(self, addr: Tuple[str, int], command: str, data: str) -> None:
 		"""Sends data to the specified address.
 
 		Args:
-			host (str): IPv4 address of target.
-			port (int): the target port.
+			addr (str, int): a tuple of the IPv4 address of the target
+				and the target port.
+			command (str): the command to indicate how to handle the data
+				(see peer.commands)
 			data (str): the data to be sent.
 		"""
-		peer = Connection(host, port)
-		peer.senddata(data)
+		formatted_data = f"{command.upper()}{data}"
+		peer = Connection(addr)
+		peer.senddata(formatted_data)
 		peer.close() # ?
 
 	def read(self, data):
@@ -145,7 +181,7 @@ class Peer:
 		"""
 		print(data)
 	
-	def create_contact(self, contact_str):
+	def create_contact(self, contact_id):
 		"""Creates and returns a dictionary objet based off of a contact id.
 
 		Args:
@@ -155,10 +191,11 @@ class Peer:
 		Returns:
 			dict: dictionary objet for the contact
 		"""
-		addr, port, name = contact_str.split(':')
+		host, port, name = contact_id.split(':')
 		contact = {
-			'id': f'{addr}:{port}:{name}', # same as contact_str
-			'addr': addr,
+			'id': f'{host}:{port}:{name}', # same as contact_str
+			'addr': (host, int(port)),
+			'host': host,
 			'port': int(port),
 			'name': name
 		}
@@ -194,7 +231,7 @@ class Peer:
 				be introduced.
 		"""
 		for contact in self.contacts:
-			peer = Connection(contact['addr'], contact['port'])
+			peer = Connection(contact['addr'])
 			peer.senddata('intr' + new_contact['id'])
 	
 	def handle_introduction(self, contact_str):
@@ -212,8 +249,7 @@ class Peer:
 		Args:
 			contact (dict): contact dict objet of new peer
 		"""
-		host, port = contact['addr'], int(contact['port'])
-		peer = Connection(host, port)
+		peer = Connection(contact['addr'])
 
 		known_peers = [self.id]
 		for contact in self.contacts:
