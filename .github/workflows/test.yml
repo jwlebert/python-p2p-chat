@@ -54,7 +54,5 @@ jobs:
       #              run test suite
       #----------------------------------------------
       - name: Run tests
-        run: |
-          pass
-          
+        run: |          
         #poetry run python -m unittest discover -s "./test"
